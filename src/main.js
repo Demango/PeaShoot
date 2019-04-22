@@ -3,21 +3,53 @@ const fs = require('fs');
 const sigmoid = value =>
   1 / (1 + Math.E ** -value)
 
-// sigmoid function has a larger slope as it approaches 1 or 0
-// this can be interpreted as a "confidence"
+// chain rule component derivatives
+const costActDerivative = cost => 2 * cost
+const actAccDerivative = accumulation => sigmoidDerivative(accumulation)
+const accWeightDerivative = activation => activation
+const accActDerivative = weight => weight
 const sigmoidDerivative = value => {
   const sig = sigmoid(value)
 
   return sig * (1 - sig)
 }
 
+// cost derivatives
+const costWeightDerivative = (cost, accumulation, activation) =>
+  accWeightDerivative(activation) * actAccDerivative(accumulation) * costActDerivative(cost)
+const costBiasDerivative = (cost, accumulation) =>
+  acccumulationDerivative(accumulation) * costActDerivative(cost)
+const costActivationDerivative = products => {
+  // requires cost, accumulation, weight of all nodes in L+1 of the computed
+  let total = 0
+
+  products.forEach(product => {
+    const {cost, accumulation, weight} = product
+    total += accActDerivative(weight) * acccumulationDerivative(accumulation) * costActDerivative(cost)
+  })
+
+  return total
+}
+
+const calculateCost = (actual, expected) => {
+  let error = 0
+  actual.forEach(result => {
+    error += result - expected
+  })
+
+  return error ** 2
+}
+
 const propagate = (input, layers, weights, biases) => {
   const activations = []
+  const accumulations = []
   layers.forEach((neuronCount, layer) => {
     if (layer === 0) {
       activations[0] = input
+      accumulations[0] = null
     } else {
       activations[layer] = []
+      accumulations[layer] = []
       for (let neuron = 0; neuron < neuronCount; neuron++) {
         let neuronAccumulation =
           activations[layer-1]
@@ -27,12 +59,13 @@ const propagate = (input, layers, weights, biases) => {
             .reduce((val, acc) => acc + val, 0)
 
         neuronAccumulation += biases[layer][neuron]
+        accumulations[layer][neuron] = neuronAccumulation
         activations[layer][neuron] = sigmoid(neuronAccumulation)
       }
     }
   })
 
-  return activations
+  return {activations, accumulations}
 }
 
 const fillWeights = layers => {
@@ -62,7 +95,7 @@ const fillBiases = layers => {
 
 export default class Network {
   constructor() {
-    this.layers = [3, 2, 1]
+    this.layers = [3, 1]
     this.newWeights = fillWeights(this.layers)
     this.biases = fillBiases(this.layers)
 
@@ -92,6 +125,10 @@ export default class Network {
 
   train(iterations) {
     // Placeholder before implementing dynamic backpropagation
+    const set = this.trainingSets[0]
+    const {activations, accumulations} = this.think(set.input)
+    const cost = calculateCost(activations[activations.length-1], set.output)
+    console.log(cost)
 
     console.log(this.think(this.trainingSets[0].input))
   }
