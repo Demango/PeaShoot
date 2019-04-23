@@ -7,7 +7,7 @@ const sigmoid = value =>
 const costActDerivative = cost => 2 * cost
 const actAccDerivative = accumulation => sigmoidDerivative(accumulation)
 const accWeightDerivative = activation => activation
-const accActDerivative = weight => weight
+const accPrevActDerivative = weight => weight
 const sigmoidDerivative = value => {
   const sig = sigmoid(value)
 
@@ -15,17 +15,32 @@ const sigmoidDerivative = value => {
 }
 
 // cost derivatives
-const costWeightDerivative = (cost, accumulation, activation) =>
-  accWeightDerivative(activation) * actAccDerivative(accumulation) * costActDerivative(cost)
+const costWeightDerivative = (cost, accumulation, prevActivation) =>
+  accWeightDerivative(prevActivation) * actAccDerivative(accumulation) * costActDerivative(cost)
+const actWeightDerivative = (accumulation, prevActivation) =>
+  accWeightDerivative(prevActivation) * actAccDerivative(accumulation)
 const costBiasDerivative = (cost, accumulation) =>
   acccumulationDerivative(accumulation) * costActDerivative(cost)
-const costActivationDerivative = products => {
+const actBiasDerivative = (accumulation) =>
+  acccumulationDerivative(accumulation)
+const costPrevActivationDerivative = products => {
   // requires cost, accumulation, weight of all nodes in L+1 of the computed
   let total = 0
 
   products.forEach(product => {
     const {cost, accumulation, weight} = product
-    total += accActDerivative(weight) * acccumulationDerivative(accumulation) * costActDerivative(cost)
+    total += accPrevActDerivative(weight) * acccumulationDerivative(accumulation) * costActDerivative(cost)
+  })
+
+  return total
+}
+const actPrevActivationDerivative = products => {
+  // requires accumulation, weight of all nodes in L+1 of the computed
+  let total = 0
+
+  products.forEach(product => {
+    const {accumulation, weight} = product
+    total += accPrevActDerivative(weight) * acccumulationDerivative(accumulation)
   })
 
   return total
@@ -46,7 +61,7 @@ const propagate = (input, layers, weights, biases) => {
   layers.forEach((neuronCount, layer) => {
     if (layer === 0) {
       activations[0] = input
-      accumulations[0] = null
+      accumulations[0] = input
     } else {
       activations[layer] = []
       accumulations[layer] = []
@@ -67,6 +82,24 @@ const propagate = (input, layers, weights, biases) => {
 
   return {activations, accumulations}
 }
+
+const computeDerivatives = (accumulations, activations, weights, cost) => {
+  accumulations.reverse()
+  activations.reverse()
+  weights.reverse()
+
+  for (var i = 0; i < activations.length-1; i++) {
+    console.log(activations[i])
+    console.log(weights[i])
+  }
+  weights.forEach((layerWeights, layer) => {
+    layerWeights.forEach((weight, neuron) => {
+      costWeightDerivative(cost, accumulations[layer][neuron], activations[layer+1][neuron])
+    })
+  })
+}
+
+const backpropagate = () => null
 
 const fillWeights = layers => {
   const weights = []
@@ -95,8 +128,8 @@ const fillBiases = layers => {
 
 export default class Network {
   constructor() {
-    this.layers = [3, 1]
-    this.newWeights = fillWeights(this.layers)
+    this.layers = [3, 2, 2]
+    this.weights = fillWeights(this.layers)
     this.biases = fillBiases(this.layers)
 
     this.trainingSets = [
@@ -120,7 +153,7 @@ export default class Network {
   }
 
   think(input) {
-    return propagate(input, this.layers, this.newWeights, this.biases)
+    return propagate(input, this.layers, this.weights, this.biases)
   }
 
   train(iterations) {
@@ -128,7 +161,8 @@ export default class Network {
     const set = this.trainingSets[0]
     const {activations, accumulations} = this.think(set.input)
     const cost = calculateCost(activations[activations.length-1], set.output)
-    console.log(cost)
+
+    computeDerivatives(accumulations, activations, this.weights, cost)
 
     console.log(this.think(this.trainingSets[0].input))
   }
